@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Piezoelectric Transducer Explorer</title>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.5.0/model-viewer.min.js"></script>
+<style>
+:root{--bg:#0b1020;--card:#151c33;--ink:#e8ecf8;--mute:#9aa6c7;--acc:#4fd1c5;--warn:#f6ad55;--line:#26304f}
+*{box-sizing:border-box}body{margin:0;font:15px/1.55 system-ui,Segoe UI,sans-serif;background:var(--bg);color:var(--ink)}
+header{padding:18px 20px;border-bottom:1px solid var(--line)}h1{margin:0;font-size:1.4rem}header p{margin:4px 0 0;color:var(--mute)}
+main{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(300px,1fr);gap:16px;padding:16px;max-width:1300px;margin:auto}
+@media(max-width:850px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:16px}
+h2{font-size:1.05rem;margin:0 0 8px;color:var(--acc)}
+#stage{height:min(62vh,520px);border-radius:12px;overflow:hidden;position:relative;touch-action:none}
+#stage canvas{display:block;width:100%;height:100%}
+#info{margin-top:8px;color:var(--mute);min-height:3em}
+label{display:block;margin:10px 0 2px;color:var(--mute);font-size:.9rem}
+input[type=range]{width:100%;accent-color:var(--acc)}select,button{background:#1e2848;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit;cursor:pointer}
+button:hover{border-color:var(--acc)}.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+table{width:100%;border-collapse:collapse}td{padding:5px 0;border-bottom:1px solid var(--line)}td:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--acc);font-weight:600}
+.note{color:var(--warn);font-size:.82rem}.eq{font-family:ui-monospace,Consolas,monospace;background:#0e1428;padding:8px;border-radius:8px;display:block;margin:6px 0;overflow-x:auto}
+canvas#plot{width:100%;height:120px;background:#0e1428;border-radius:8px}
+.leg span{display:inline-block;margin:2px 8px 2px 0;font-size:.85rem}.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px}
+ol,ul{padding-left:20px;margin:6px 0}.q{margin:12px 0}.q label{color:var(--ink);margin:4px 0;cursor:pointer}.ok{color:#68d391}.bad{color:#fc8181}
+model-viewer{width:100%;height:340px;background:#0e1428;border-radius:12px}
+</style></head><body>
+<header><h1>Piezoelectric Transducer Explorer</h1>
+<p>Interactive 3D model, cross-section, live physics and AR. Note: a piezoelectric sensor is a <em>self-generating</em> transducer (not inductive); it is shown here as a companion to the inductive types such as the LVDT.</p></header>
+<main>
+<section>
+ <div class="card"><h2>3D model (drag to rotate, scroll/pinch to zoom, tap a part for details)</h2>
+  <div id="stage"></div><div id="info">Tap a component to learn what it does.</div>
+  <div class="leg" id="legend"></div></div>
+ <div class="card"><h2>Output voltage over time (simulated)</h2><canvas id="plot" width="600" height="120"></canvas>
+  <p class="note">Educational estimate. Notice the output decays even while force is held: charge leaks away, so piezo sensors suit dynamic (changing) forces, not static ones.</p></div>
+ <div class="card"><h2>View in AR (phone)</h2>
+  <model-viewer src="assets/piezo_sensor.glb" alt="Piezoelectric sensor 3D model" ar ar-modes="webxr scene-viewer quick-look" camera-controls shadow-intensity="1" ar-scale="auto">
+   <button slot="ar-button" style="position:absolute;bottom:12px;right:12px;background:var(--acc);color:#012;font-weight:700">View in your space</button></model-viewer>
+  <p class="note">AR shows a <b>static</b> model with a cut-away housing. Sliders and live readings only work in the interactive 3D view above. AR needs a supported phone (Android Chrome with ARCore, or iPhone Safari) and the HTTPS link from GitHub Pages.</p></div>
+ <div class="card"><h2>Quiz</h2><div id="quiz"></div><p id="score"></p></div>
+</section>
+<aside>
+ <div class="card"><h2>Controls</h2>
+  <label>Applied force: <b id="fv">0</b> N</label><input id="force" type="range" min="0" max="1000" value="0">
+  <div class="row"><button id="tap">Tap (impulse)</button><button id="rel">Release to 0</button></div>
+  <label>Piezo material</label><select id="mat"><option value="quartz">Quartz (SiO₂)</option><option value="pzt" selected>PZT-5A ceramic</option><option value="bto">Barium titanate</option></select>
+  <label>Exploded view</label><input id="exp" type="range" min="0" max="100" value="0">
+  <label>Cross-section cut (0 = off)</label><input id="cut" type="range" min="0" max="100" value="0">
+  <label>Housing opacity</label><input id="hop" type="range" min="0" max="100" value="25">
+  <label>Rotate model</label><input id="rot" type="range" min="0" max="360" value="0">
+  <div class="row"><button id="auto">Auto-rotate: off</button><button id="reset">Reset</button></div>
+  <p class="note">Compression is visually exaggerated (real strain is micrometres).</p></div>
+ <div class="card"><h2>Live readings <span class="note">(educational estimates)</span></h2>
+  <table><tr><td>Material</td><td id="rm">-</td></tr><tr><td>Charge Q = 2·d·F</td><td id="rq">-</td></tr>
+  <tr><td>Stack capacitance + cable</td><td id="rc">-</td></tr><tr><td>Ideal voltage V = Q/C</td><td id="rv">-</td></tr>
+  <tr><td>Measured V(t) after leakage</td><td id="rl">-</td></tr><tr><td>Time constant τ = R·C</td><td id="rt">-</td></tr></table>
+  <p class="note">Model: two discs (10 mm dia, 1 mm thick) electrically in parallel, cable 100 pF, input resistance 1 GΩ. Constants are typical textbook values; real sensors vary.</p></div>
+ <div class="card"><h2>The physics</h2>
+  <span class="eq">Q = d · F   (charge, d = piezo coefficient in pC/N)<br>C = ε₀·εr·A / t<br>V = Q / (C + C_cable)<br>V(t) decays as e^(−t/RC)</span>
+  <p>Squeezing the crystal displaces its positive and negative charge centres, so opposite faces gain opposite charge. Two discs wired in parallel double the charge. Quartz has a small d but is very stable; PZT ceramics give about 100× more charge.</p></div>
+ <div class="card"><h2>How it works, step by step</h2>
+  <ol><li>Force acts on the seismic mass / force plate.</li><li>The plate presses the stack of piezo discs between electrodes.</li><li>Mechanical stress shifts charge inside the crystal lattice (direct piezoelectric effect).</li><li>Surface charge appears on the electrodes; the centre electrode is the output.</li><li>A charge or voltage amplifier converts it to a usable signal, which decays if force is constant.</li></ol>
+  <h2 style="margin-top:12px">Applications</h2><ul><li>Accelerometers and vibration monitors</li><li>Engine knock sensors in cars</li><li>Dynamic pressure and force sensors</li><li>Ultrasonic transducers, microphones, lighters</li></ul></div>
+</aside></main>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+const $=id=>document.getElementById(id), stage=$('stage');
+const R=new THREE.WebGLRenderer({antialias:true});R.localClippingEnabled=true;R.setPixelRatio(Math.min(devicePixelRatio,2));stage.appendChild(R.domElement);
+const scene=new THREE.Scene();scene.background=new THREE.Color(0x0b1020);
+const cam=new THREE.PerspectiveCamera(40,1,.1,100);cam.position.set(5.5,3.8,6.5);
+const oc=new OrbitControls(cam,R.domElement);oc.target.set(0,1.4,0);oc.enableDamping=true;
+scene.add(new THREE.HemisphereLight(0xffffff,0x223355,1.2));const dl=new THREE.DirectionalLight(0xffffff,1.6);dl.position.set(4,8,5);scene.add(dl);
+function fit(){const w=stage.clientWidth,h=stage.clientHeight;R.setSize(w,h,false);cam.aspect=w/h;cam.updateProjectionMatrix()}
+new ResizeObserver(fit).observe(stage);fit();
+const clip=new THREE.Plane(new THREE.Vector3(-1,0,0),3);
+const root=new THREE.Group();scene.add(root);
+const M={quartz:{n:'Quartz (SiO₂)',d:2.3,er:4.5,c:0xcfe8ff},pzt:{n:'PZT-5A ceramic',d:374,er:1700,c:0xf2d27a},bto:{n:'Barium titanate',d:190,er:1700,c:0xb6e3a0}};
+const parts=[];
+const mk=(name,r,h,y0,col,desc,metal=.6)=>{const m=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,48),new THREE.MeshStandardMaterial({color:col,metalness:metal,roughness:.4,side:THREE.DoubleSide,clippingPlanes:[clip]}));
+ m.position.y=y0+h/2;m.userData={name,desc,y:m.position.y,h,col,i:parts.length};root.add(m);parts.push(m);return m};
+const COP=0xd9822b,STL=0x8b97ad;
+mk('Base',1.3,.2,0,STL,'Base: rigid steel mounting plate that anchors the sensor to the structure.');
+mk('Bottom electrode',1,.06,.2,COP,'Bottom electrode: thin copper contact collecting charge from the lower disc (tied to the case/ground).');
+const d1=mk('Piezo disc 1',1,.6,.26,0xf2d27a,'Piezo disc 1: polarised upward (toward the centre electrode). Compression produces charge on its faces.',.1);
+const ce=mk('Centre electrode',1.1,.06,.86,COP,'Centre electrode: signal output. Both discs face it with the same polarity, so their charges add (parallel connection).');
+const lead=new THREE.Mesh(new THREE.BoxGeometry(.7,.05,.12),ce.material);lead.position.x=1.35;ce.add(lead);
+const d2=mk('Piezo disc 2',1,.6,.92,0xf2d27a,'Piezo disc 2: polarised downward (toward the centre electrode), so its output adds to disc 1.',.1);
+mk('Top electrode',1,.06,1.52,COP,'Top electrode: thin copper contact, connected to ground together with the bottom electrode.');
+mk('Insulator',1,.12,1.58,0xf1f1f1,'Insulator: ceramic disc that electrically isolates the stack from the metal mass.',.05);
+mk('Seismic mass / force plate',1.15,.4,1.7,STL,'Seismic mass / force plate: transfers force (or inertia from acceleration, F = m·a) into the crystal stack.');
+const hm=new THREE.MeshStandardMaterial({color:0x4fd1c5,transparent:true,opacity:.25,side:THREE.DoubleSide,depthWrite:false,clippingPlanes:[clip],metalness:.3,roughness:.3});
+const house=new THREE.Mesh(new THREE.CylinderGeometry(1.35,1.35,2.2,48,1,true),hm);house.position.y=1.1;
+house.userData={name:'Housing',desc:'Housing: protective case that shields the stack from dust and electrical noise (shown transparent).'};root.add(house);
+[[d1,1],[d2,-1]].forEach(([p,s])=>{const a=new THREE.ArrowHelper(new THREE.Vector3(0,s,0),new THREE.Vector3(.45,-s*.25,0),.5,0xff4d6d,.15,.1);p.add(a)});
+const farrow=new THREE.ArrowHelper(new THREE.Vector3(0,-1,0),new THREE.Vector3(0,3.6,0),1,0xff4d6d,.3,.2);scene.add(farrow);
+$('legend').innerHTML=parts.slice(0,8).map(p=>`<span><i style="background:#${p.userData.col.toString(16).padStart(6,'0')}"></i>${p.userData.name}</span>`).join('')+'<span><i style="background:#ff4d6d"></i>Polarisation / force</span>';
+// click to inspect
+let down=null,sel=null;R.domElement.addEventListener('pointerdown',e=>down=[e.clientX,e.clientY]);
+R.domElement.addEventListener('pointerup',e=>{if(!down||Math.hypot(e.clientX-down[0],e.clientY-down[1])>5)return;
+ const b=R.domElement.getBoundingClientRect(),rc=new THREE.Raycaster();rc.setFromCamera(new THREE.Vector2((e.clientX-b.left)/b.width*2-1,-(e.clientY-b.top)/b.height*2+1),cam);
+ const hit=rc.intersectObjects([...parts,house],false).find(h=>h.object!==house)||rc.intersectObject(house)[0];
+ if(sel)sel.material.emissive?.set(0);sel=hit?hit.object:null;if(sel){sel.material.emissive?.set(0x224455);$('info').textContent=sel.userData.desc}});
+// state + physics
+const A=Math.PI*.005**2,T=1e-3,E0=8.854e-12,CC=100e-12,RL=1e9;let F=0,prevF=0,V=0,auto=false;const hist=[];
+const sci=(x,u)=>{const a=Math.abs(x);return a>=1e-6?(x*1e6).toFixed(2)+' µ'+u:a>=1e-9?(x*1e9).toFixed(2)+' n'+u:(x*1e12).toFixed(2)+' p'+u};
+function ui(){const m=M[$('mat').value],C=2*E0*m.er*A/T+CC,Q=2*m.d*1e-12*F;
+ $('fv').textContent=F;$('rm').textContent=m.n+' (d≈'+m.d+' pC/N)';$('rq').textContent=sci(Q,'C');$('rc').textContent=sci(C,'F');$('rv').textContent=(Q/C).toFixed(2)+' V';
+ $('rl').textContent=V.toFixed(2)+' V';$('rt').textContent=(RL*C*1000).toFixed(0)+' ms';
+ d1.material.color.set(m.c);d2.material.color.set(m.c);
+ const ex=$('exp').value/100*.5,comp=F/1000*.1;
+ parts.forEach(p=>{p.position.y=p.userData.y+p.userData.i*ex-comp*p.userData.i/(parts.length-1)});
+ farrow.position.y=3.6+parts.length*ex;farrow.setLength(.4+F/1000*1.2,.3,.2);farrow.visible=F>0;
+ hm.opacity=$('hop').value/100;const c=+$('cut').value;clip.constant=c?3-3*c/100:3;root.rotation.y=THREE.MathUtils.degToRad($('rot').value);
+ const g=Math.min(1,Math.abs(Q/C)/40);[d1,d2].forEach(p=>p.material.emissive.setRGB(g*.5,g*.15,g*.1))}
+['force','mat','exp','cut','hop','rot'].forEach(id=>$(id).addEventListener('input',()=>{F=+$('force').value;ui()}));
+$('tap').onclick=()=>{$('force').value=600;F=600;setTimeout(()=>{$('force').value=0;F=0},150)};
+$('rel').onclick=()=>{$('force').value=0;F=0};
+$('auto').onclick=()=>{auto=!auto;$('auto').textContent='Auto-rotate: '+(auto?'on':'off')};
+$('reset').onclick=()=>{['force','exp','cut','rot'].forEach(i=>$(i).value=0);$('hop').value=25;$('mat').value='pzt';F=0;V=0;hist.length=0;cam.position.set(5.5,3.8,6.5);oc.target.set(0,1.4,0)};
+const pl=$('plot'),px=pl.getContext('2d');let last=performance.now();
+function draw(){px.clearRect(0,0,600,120);const mx=Math.max(1,...hist.map(Math.abs));px.strokeStyle='#26304f';px.beginPath();px.moveTo(0,60);px.lineTo(600,60);px.stroke();
+ px.strokeStyle='#4fd1c5';px.lineWidth=2;px.beginPath();hist.forEach((v,i)=>{const x=i/360*600,y=60-v/mx*50;i?px.lineTo(x,y):px.moveTo(x,y)});px.stroke();px.fillStyle='#9aa6c7';px.font='11px sans-serif';px.fillText('±'+mx.toFixed(1)+' V full scale',6,12)}
+function loop(t){requestAnimationFrame(loop);const dt=Math.min(.05,(t-last)/1000);last=t;
+ const m=M[$('mat').value],C=2*E0*m.er*A/T+CC;V+=(F-prevF)*2*m.d*1e-12/C;V*=Math.exp(-dt/(RL*C));prevF=F;
+ hist.push(V);if(hist.length>360)hist.shift();ui();draw();if(auto)$('rot').value=(+$('rot').value+.4)%360;oc.update();R.render(scene,cam)}
+requestAnimationFrame(loop);
+// quiz
+const Q=[['What does a piezoelectric transducer convert?',['Light to heat','Mechanical stress to electric charge','Temperature to resistance'],1],
+['Why does the output decay under a constant force?',['Charge leaks away through finite resistance','The crystal melts','The force sensor drifts in gravity'],0],
+['Which material gives the most charge per newton here?',['Quartz','PZT ceramic','They are identical'],1],
+['Why are two discs wired in parallel?',['To double the charge output','To cancel the signal','To reduce weight'],0],
+['Best use of a piezo sensor?',['Measuring a static weight for hours','Measuring vibration or impact','Measuring temperature'],1]];
+let sc=0,an=0;$('quiz').innerHTML=Q.map((q,i)=>`<div class="q"><b>${i+1}. ${q[0]}</b>${q[1].map((o,j)=>`<label><input type="radio" name="q${i}" value="${j}"> ${o}</label>`).join('')}<div id="f${i}"></div></div>`).join('');
+Q.forEach((q,i)=>document.querySelectorAll(`[name=q${i}]`).forEach(r=>r.onchange=()=>{if(document.getElementById('f'+i).dataset.d)return;document.getElementById('f'+i).dataset.d=1;an++;const ok=+r.value===q[2];sc+=ok;
+ document.getElementById('f'+i).innerHTML=ok?'<span class="ok">Correct</span>':'<span class="bad">Not quite: '+q[1][q[2]]+'</span>';$('score').textContent=an===Q.length?`Score: ${sc}/${Q.length}`:''}));
+</script></body></html>
